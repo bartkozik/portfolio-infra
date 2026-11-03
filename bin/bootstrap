@@ -37,6 +37,7 @@ chmod 644 /etc/apt/sources.list.d/docker.sources
 apt-get update
 apt-get install -y docker-ce docker-ce-cli containerd.io docker-buildx-plugin docker-compose-plugin
 systemctl enable --now docker
+systemctl start ssh
 if id portfolio-deploy >/dev/null 2>&1; then
     [[ $(id -Gn portfolio-deploy) == portfolio-deploy ]] || { printf '%s\n' 'Existing deploy account has unexpected group access.' >&2; exit 1; }
     [[ $(getent passwd portfolio-deploy | cut -d: -f6-7) == /var/lib/portfolio-deploy:/bin/sh ]] || { printf '%s\n' 'Existing deploy account has unexpected home or shell.' >&2; exit 1; }
@@ -75,7 +76,7 @@ Match all
 EOF
 chmod 644 /etc/ssh/sshd_config.d/00-portfolio-deploy.conf
 /usr/sbin/sshd -t
-/usr/sbin/sshd -T -C user=portfolio-deploy,host=localhost,addr=127.0.0.1 | grep -qx 'forcecommand /usr/local/sbin/portfolio-ssh'
+/usr/sbin/sshd -T -C user=portfolio-deploy,host=localhost,addr=127.0.0.1 | grep -x 'forcecommand /usr/local/sbin/portfolio-ssh' >/dev/null
 systemctl reload ssh
 export APP_BLUE_IMAGE=ghcr.io/bartkozik/kozikowski-it@sha256:0000000000000000000000000000000000000000000000000000000000000000
 export APP_GREEN_IMAGE=$APP_BLUE_IMAGE
