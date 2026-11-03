@@ -1,0 +1,70 @@
+name: portfolio
+
+x-app: &app
+  restart: unless-stopped
+  init: true
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 768m
+  mem_reservation: 128m
+  cpus: 1.0
+  stop_grace_period: 30s
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=64m,uid=1000,gid=1000
+    - /app/.next/cache:rw,noexec,nosuid,size=128m,uid=1000,gid=1000
+  environment:
+    NODE_ENV: production
+    HOSTNAME: 0.0.0.0
+    PORT: "3000"
+  networks: [portfolio]
+  logging:
+    driver: json-file
+    options:
+      max-size: 10m
+      max-file: "3"
+
+services:
+  app-blue:
+    <<: *app
+    image: ${APP_BLUE_IMAGE:?Set APP_BLUE_IMAGE}
+
+  app-green:
+    <<: *app
+    image: ${APP_GREEN_IMAGE:?Set APP_GREEN_IMAGE}
+
+  caddy:
+    image: caddy:2@sha256:36c24ad91a7ff7bc4c87fe22bfa8df3c4b18da0773d73fc12ee2c52b98c0bb7e
+    restart: unless-stopped
+    read_only: true
+    cap_drop: [ALL]
+    cap_add: [NET_BIND_SERVICE]
+    security_opt: [no-new-privileges:true]
+    pids_limit: 128
+    mem_limit: 256m
+    cpus: 0.5
+    ports:
+      - "80:80"
+      - "443:443"
+      - "443:443/udp"
+    volumes:
+      - ./caddy:/etc/caddy:ro
+      - caddy-data:/data
+      - caddy-config:/config
+    tmpfs:
+      - /tmp:rw,noexec,nosuid,size=16m
+    networks: [portfolio]
+    logging:
+      driver: json-file
+      options:
+        max-size: 10m
+        max-file: "3"
+
+networks:
+  portfolio:
+
+volumes:
+  caddy-data:
+  caddy-config:

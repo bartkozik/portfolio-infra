@@ -1,0 +1,11 @@
+kozikowski.it {
+    respond "Deployment pending" 503
+}
+
+www.kozikowski.it {
+    redir https://kozikowski.it{uri} permanent
+}
+
+:8080 {
+    respond "Deployment pending" 503
+}
