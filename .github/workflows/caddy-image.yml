@@ -20,9 +20,9 @@ jobs:
           persist-credentials: false
       - name: Build and test Caddy
         run: |
-          docker build -f caddy/Dockerfile --tag "ghcr.io/$GITHUB_REPOSITORY/caddy:sha-$GITHUB_SHA" caddy
-          python3 tests/caddy_image.py "ghcr.io/$GITHUB_REPOSITORY/caddy:sha-$GITHUB_SHA"
-          docker save "ghcr.io/$GITHUB_REPOSITORY/caddy:sha-$GITHUB_SHA" | gzip > "$RUNNER_TEMP/caddy.tar.gz"
+          docker build -f caddy/Dockerfile --tag "ghcr.io/$GITHUB_REPOSITORY:sha-$GITHUB_SHA" caddy
+          python3 tests/caddy_image.py "ghcr.io/$GITHUB_REPOSITORY:sha-$GITHUB_SHA"
+          docker save "ghcr.io/$GITHUB_REPOSITORY:sha-$GITHUB_SHA" | gzip > "$RUNNER_TEMP/caddy.tar.gz"
       - uses: actions/upload-artifact@cf430e030ddbb5b0abf93d22962f4752f3646cd9
         with:
           name: caddy-image
@@ -52,6 +52,6 @@ jobs:
           trap 'docker logout ghcr.io >/dev/null' EXIT
           printf '%s' "$REGISTRY_TOKEN" | docker login ghcr.io --username "$GITHUB_ACTOR" --password-stdin
           gzip --decompress --stdout "$RUNNER_TEMP/image/caddy.tar.gz" | docker load
-          image="ghcr.io/$GITHUB_REPOSITORY/caddy:sha-$GITHUB_SHA"
+          image="ghcr.io/$GITHUB_REPOSITORY:sha-$GITHUB_SHA"
           docker push "$image"
           docker image inspect --format '{{index .RepoDigests 0}}' "$image" >> "$GITHUB_STEP_SUMMARY"
