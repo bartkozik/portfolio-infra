@@ -37,10 +37,12 @@ jobs:
         run: python3 -m unittest discover -s tests -v
       - name: Check shell scripts
         run: |
-          bash -n bin/bootstrap bin/portfolio-ssh
-          shellcheck -e SC1091 bin/bootstrap bin/portfolio-ssh
+          bash -n bin/bootstrap bin/portfolio-ssh bin/bootstrap-traffic bin/traffic-ssh
+          shellcheck -e SC1091 bin/bootstrap bin/portfolio-ssh bin/bootstrap-traffic bin/traffic-ssh
       - name: Validate Compose
         env:
           APP_BLUE_IMAGE: ghcr.io/bartkozik/kozikowski-it:check
           APP_GREEN_IMAGE: ghcr.io/bartkozik/kozikowski-it:check
         run: docker compose config --quiet
+      - name: Validate demo Compose and combined Caddy routes
+        run: bash tests/validate_traffic_config.sh

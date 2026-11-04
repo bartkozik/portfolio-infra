@@ -1,0 +1,83 @@
+name: traffic
+
+x-api: &api
+  restart: unless-stopped
+  init: true
+  user: "1001:1001"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 96
+  mem_limit: 384m
+  cpus: 0.75
+  env_file: ./api.env
+  environment:
+    NODE_ENV: production
+    PTM_DEMO_ENABLED: "true"
+    PTM_AUTH_ENABLED: "false"
+    PTM_API_PORT: "4000"
+    PTM_API_CORS_ORIGIN: https://traffic.kozikowski.it
+    PTM_AUTH_COOKIE_SECURE: "true"
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=16m,uid=1001,gid=1001
+  networks: [portfolio, database]
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: 5m
+      max-file: "2"
+
+x-web: &web
+  restart: unless-stopped
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 64
+  mem_limit: 64m
+  cpus: 0.25
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
+  networks: [portfolio]
+  logging: *logging
+
+services:
+  traffic-api-blue:
+    <<: *api
+    image: ${API_BLUE_IMAGE:?Set API_BLUE_IMAGE}
+  traffic-api-green:
+    <<: *api
+    image: ${API_GREEN_IMAGE:?Set API_GREEN_IMAGE}
+  traffic-web-blue:
+    <<: *web
+    image: ${WEB_BLUE_IMAGE:?Set WEB_BLUE_IMAGE}
+  traffic-web-green:
+    <<: *web
+    image: ${WEB_GREEN_IMAGE:?Set WEB_GREEN_IMAGE}
+  postgres:
+    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+    restart: unless-stopped
+    env_file: ./database.env
+    command: [postgres, -c, shared_buffers=64MB, -c, max_connections=40]
+    mem_limit: 384m
+    cpus: 0.5
+    pids_limit: 96
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - database:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U ptm -d traffic"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *logging
+
+networks:
+  portfolio:
+    external: true
+    name: portfolio_portfolio
+  database:
+    internal: true
+volumes:
+  database:

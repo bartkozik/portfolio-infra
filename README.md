@@ -37,11 +37,20 @@ The script installs Docker, configures the restricted deployment account and cre
 
 The application workflow uses `DEPLOY_HOST`, `DEPLOY_SSH_KEY` and `DEPLOY_KNOWN_HOSTS` from its GitHub `production` environment. Verify the host fingerprint through the provider console. The server needs read access to the GHCR image. Enable `PRODUCTION_ENABLED` only after checking SSH access, DNS and HTTPS.
 
+## Traffic demo
+
+`traffic/compose.yaml` runs the PM Traffic demo with a private PostgreSQL volume and two API/web deployment slots. Caddy imports its routes independently, so portfolio releases preserve the demo route.
+
+After the portfolio bootstrap, run `sudo bash bin/bootstrap-traffic /path/to/traffic-deploy.pub`. It creates a separate restricted deployment account and generates database credentials in root-only files under `/opt/traffic`. Set the dedicated `PTM_DEMO_OPENAI_API_KEY` in `/opt/traffic/api.env` using an administrator session; never place it in Git or an image build argument.
+
+The application workflow supplies two tested image digests to `traffic-deploy`. API and web switch together after both health checks pass. The previous pair remains available for rollback. Both applications use the same deployment lock while changing Caddy routes. The demo's AI budget is persisted in PostgreSQL, independently of the running image and guest resets.
+
 ## Verification
 
 ```sh
 python3 -m unittest discover -s tests -v
-bash -n bin/bootstrap bin/portfolio-ssh
+bash -n bin/bootstrap bin/portfolio-ssh bin/bootstrap-traffic bin/traffic-ssh
+bash tests/validate_traffic_config.sh
 ```
 
 Tests cover input validation, concurrent deployments, slot switching, rollback and recovery after interruption. CI also scans Git history for secrets and validates the Compose configuration.

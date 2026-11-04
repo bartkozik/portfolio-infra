@@ -54,6 +54,10 @@ class DeployTests(unittest.TestCase):
     def test_deployment_module_exists(self):
         self.assertTrue(MODULE.exists(), "The validated deployment helper is missing")
 
+    def test_portfolio_deploy_keeps_independent_demo_routes(self):
+        module = load_module()
+        self.assertIn('import sites/*.caddy', module.configuration('blue', DIGEST_A))
+
     def test_digest_validation(self):
         if not MODULE.exists():
             self.skipTest("Waiting for helper")
