@@ -23,6 +23,7 @@ def main(image):
     print(f"PASS: Caddy uses Go {'.'.join(map(str, version))}")
     name = "caddy-security-test-" + uuid.uuid4().hex[:10]
     with tempfile.TemporaryDirectory() as temporary:
+        Path(temporary).chmod(0o755)
         config = Path(temporary) / "Caddyfile"
         config.write_text('''{
     auto_https off
@@ -58,6 +59,9 @@ def main(image):
             if response != "reloaded":
                 raise RuntimeError("Caddy reload did not update the proxied response")
             print("PASS: restricted container, config validation, HTTP proxy and reload")
+        except BaseException:
+            subprocess.run(["docker", "logs", name], check=False)
+            raise
         finally:
             subprocess.run(["docker", "rm", "-f", name], check=False, stdout=subprocess.DEVNULL)
 
