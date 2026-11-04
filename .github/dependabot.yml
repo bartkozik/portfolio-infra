@@ -7,9 +7,13 @@ updates:
     groups:
       github-actions:
         patterns: ['*']
+  - package-ecosystem: docker
+    directory: /caddy
+    schedule:
+      interval: weekly
   - package-ecosystem: docker-compose
     directory: /
     schedule:
       interval: weekly
     allow:
-      - dependency-name: caddy
+      - dependency-name: "*caddy*"
