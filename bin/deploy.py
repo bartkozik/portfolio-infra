@@ -43,7 +43,9 @@ def atomic_write(path, text, mode=0o600):
 
 
 def configuration(slot, digest):
-    return f'''(application) {{
+    return f'''import sites/*.caddy
+
+(application) {{
     header X-Deployment-Digest "{digest}"
     reverse_proxy app-{slot}:3000
 }}
@@ -141,6 +143,9 @@ class Deployer:
         self.journal = root / "state" / "pending.json"
         self.config = root / "caddy" / "Caddyfile"
 
+    def configuration(self, slot, digest):
+        return configuration(slot, digest)
+
     def state(self):
         if not self.state_file.exists():
             return {"active": None, "images": {}}
@@ -182,7 +187,7 @@ class Deployer:
             try:
                 self.runtime.start(slot, digest, state)
                 self.runtime.wait_healthy(slot)
-                atomic_write(self.config, configuration(slot, digest), 0o644)
+                atomic_write(self.config, self.configuration(slot, digest), 0o644)
                 self.runtime.validate()
                 self.runtime.reload()
                 self.runtime.probe(digest)

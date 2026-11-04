@@ -1,0 +1,93 @@
+#!/bin/bash
+set -euo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+umask 077
+[[ $EUID == 0 && $# == 1 ]] || { printf '%s\n' 'Usage: sudo bootstrap-traffic /path/to/deploy-key.pub' >&2; exit 64; }
+[[ -f /opt/portfolio/state/deployment.json && -f /opt/portfolio/caddy/Caddyfile ]]
+ssh-keygen -l -f "$1" >/dev/null
+key=$(cat -- "$1")
+[[ $key =~ ^ssh-ed25519\ [A-Za-z0-9+/]+={0,3}(\ [^$'\n']*)?$ ]]
+source_dir=$(cd -- "$(dirname -- "$0")/.." && pwd)
+exec 9>/opt/portfolio/state/deploy.lock
+flock -n 9
+install -d -o root -g root -m 755 /opt/traffic /opt/portfolio/caddy/sites /usr/local/lib/portfolio
+install -d -o root -g root -m 700 /opt/traffic/state /opt/traffic/state/releases
+install -o root -g root -m 755 "$source_dir/bin/deploy.py" /usr/local/lib/portfolio/deploy.py
+install -o root -g root -m 755 "$source_dir/bin/deploy.py" /usr/local/sbin/portfolio-deploy
+install -o root -g root -m 755 "$source_dir/bin/traffic_deploy.py" /usr/local/lib/portfolio/traffic_deploy.py
+install -o root -g root -m 755 "$source_dir/bin/traffic-ssh" /usr/local/sbin/traffic-ssh
+install -o root -g root -m 644 "$source_dir/traffic/compose.yaml" /opt/traffic/compose.yaml
+python3 - <<'PY'
+import os
+from pathlib import Path
+import secrets
+root = Path('/opt/traffic')
+database = root / 'database.env'
+api = root / 'api.env'
+if database.exists() != api.exists():
+    raise SystemExit('Incomplete environment; refusing to regenerate credentials.')
+if not database.exists():
+    password = secrets.token_urlsafe(36)
+    for path, content in (
+        (database, f'POSTGRES_USER=ptm\nPOSTGRES_PASSWORD={password}\nPOSTGRES_DB=traffic\n'),
+        (api, f'PTM_DATABASE_URL=postgres://ptm:{password}@postgres:5432/traffic\nPTM_DEMO_OPENAI_API_KEY=\n'),
+    ):
+        fd = os.open(path, os.O_WRONLY | os.O_CREAT | os.O_EXCL, 0o600)
+        with os.fdopen(fd, 'w') as output:
+            output.write(content)
+route = Path('/opt/portfolio/caddy/sites/traffic.caddy')
+if not route.exists():
+    route.write_text('')
+    route.chmod(0o644)
+PY
+if id traffic-deploy >/dev/null 2>&1; then
+    [[ $(id -Gn traffic-deploy) == traffic-deploy ]]
+    [[ $(getent passwd traffic-deploy | cut -d: -f6-7) == /var/lib/traffic-deploy:/bin/sh ]]
+else
+    useradd --system --user-group --home-dir /var/lib/traffic-deploy --shell /bin/sh --password '*' traffic-deploy
+fi
+install -d -o root -g root -m 755 /var/lib/traffic-deploy /etc/ssh/authorized_keys
+printf 'restrict %s\n' "$key" > /etc/ssh/authorized_keys/traffic-deploy
+chmod 644 /etc/ssh/authorized_keys/traffic-deploy
+printf '%s\n' 'traffic-deploy ALL=(root) NOPASSWD: /usr/local/lib/portfolio/traffic_deploy.py *' > /etc/sudoers.d/traffic-deploy
+chmod 440 /etc/sudoers.d/traffic-deploy
+visudo -cf /etc/sudoers.d/traffic-deploy
+cat > /etc/ssh/sshd_config.d/00-traffic-deploy.conf <<'CONFIG'
+Match User traffic-deploy
+    AuthorizedKeysFile /etc/ssh/authorized_keys/traffic-deploy
+    AuthenticationMethods publickey
+    PasswordAuthentication no
+    KbdInteractiveAuthentication no
+    DisableForwarding yes
+    PermitTTY no
+    PermitTunnel no
+    PermitUserRC no
+    ForceCommand /usr/local/sbin/traffic-ssh
+Match all
+CONFIG
+chmod 644 /etc/ssh/sshd_config.d/00-traffic-deploy.conf
+/usr/sbin/sshd -t
+/usr/sbin/sshd -T -C user=traffic-deploy,host=localhost,addr=127.0.0.1 | grep -x 'forcecommand /usr/local/sbin/traffic-ssh' >/dev/null
+systemctl reload ssh
+python3 - <<'PY'
+from pathlib import Path
+import subprocess
+path = Path('/opt/portfolio/caddy/Caddyfile')
+before = path.read_text()
+if 'import sites/*.caddy' not in before:
+    path.write_text('import sites/*.caddy\n\n' + before)
+    try:
+        subprocess.run(['docker','exec','portfolio-caddy-1','caddy','validate','--config','/etc/caddy/Caddyfile','--adapter','caddyfile'], check=True)
+        subprocess.run(['docker','exec','portfolio-caddy-1','caddy','reload','--config','/etc/caddy/Caddyfile','--adapter','caddyfile'], check=True)
+    except BaseException:
+        path.write_text(before)
+        subprocess.run(['docker','exec','portfolio-caddy-1','caddy','reload','--config','/etc/caddy/Caddyfile','--adapter','caddyfile'], check=True)
+        raise
+PY
+export API_BLUE_IMAGE=ghcr.io/bartkozik/pm-traffic-manager-api:pending
+export API_GREEN_IMAGE=$API_BLUE_IMAGE
+export WEB_BLUE_IMAGE=ghcr.io/bartkozik/pm-traffic-manager-web:pending
+export WEB_GREEN_IMAGE=$WEB_BLUE_IMAGE
+docker compose -p traffic -f /opt/traffic/compose.yaml config --quiet
+docker compose -p traffic -f /opt/traffic/compose.yaml up -d --wait --wait-timeout 90 postgres
+printf '%s\n' 'Traffic database and restricted deployment account ready. AI remains off until a dedicated key is configured.'

@@ -1,0 +1,8 @@
+#!/bin/bash -p
+set -euo pipefail
+export PATH=/usr/sbin:/usr/bin:/sbin:/bin
+if [[ ${SSH_ORIGINAL_COMMAND-} =~ ^deploy\ (sha256:[0-9a-f]{64})\ (sha256:[0-9a-f]{64})$ ]]; then
+    exec /usr/bin/sudo -n -- /usr/local/lib/portfolio/traffic_deploy.py "${BASH_REMATCH[1]}" "${BASH_REMATCH[2]}"
+fi
+printf '%s\n' 'Only deploy <api digest> <web digest> is allowed.' >&2
+exit 64
