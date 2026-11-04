@@ -21,6 +21,10 @@ A deployment lock prevents overlapping releases. A transaction journal allows th
 - Only Caddy exposes public application ports; application containers share a private Docker network.
 - The SSH deployment account accepts only a validated digest for the application’s image repository. It has no interactive shell or direct Docker access.
 
+## Caddy image
+
+The Caddy image packages the official release binary with a verified SHA-512 checksum. GitHub Actions checks the Go security baseline, configuration validation, proxying and reload before publishing it to GHCR. Production uses an immutable image digest in `compose.yaml`.
+
 ## Server setup
 
 Point the domain’s DNS records at the VPS and allow SSH on port 22, HTTP on port 80 and HTTPS on port 443. Using an administrator connection, transfer this repository and a dedicated Ed25519 public deployment key, then run:
