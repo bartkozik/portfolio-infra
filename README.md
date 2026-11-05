@@ -62,3 +62,11 @@ python3 tests/integration.py kozikowski-it:local
 ```
 
 This tests real containers and Caddy reloads, including failed deployments, in an isolated local environment. It does not test public DNS or certificate issuance.
+
+## EPOCA demo
+
+EPOCA runs a Scala API, a guest-session gateway and a static frontend at `epoca.kozikowski.it`. Each visitor receives a separate temporary organization with fictional data. PostgreSQL and the Scala API are reachable only on the private demo network.
+
+`bin/bootstrap-epoca` creates the database credentials and signing key on the server, installs the restricted deployment account and starts PostgreSQL. The initial release requires API, gateway and frontend image digests. Subsequent releases can replace the backend pair or the frontend while retaining the other components. Each release is checked before Caddy switches traffic; a failed health check restores the previous route.
+
+The gateway stores session limits and reset state in PostgreSQL. Sessions expire after 24 hours; reset rotates the workspace and credentials without extending that lifetime. The public API excludes account registration, company login, invitations, uploads and external integrations.

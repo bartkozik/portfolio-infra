@@ -37,8 +37,8 @@ jobs:
         run: python3 -m unittest discover -s tests -v
       - name: Check shell scripts
         run: |
-          bash -n bin/bootstrap bin/portfolio-ssh bin/bootstrap-traffic bin/traffic-ssh
-          shellcheck -e SC1091 bin/bootstrap bin/portfolio-ssh bin/bootstrap-traffic bin/traffic-ssh
+          bash -n bin/bootstrap bin/portfolio-ssh bin/bootstrap-traffic bin/traffic-ssh bin/bootstrap-epoca bin/epoca-ssh
+          shellcheck -e SC1091 bin/bootstrap bin/portfolio-ssh bin/bootstrap-traffic bin/traffic-ssh bin/bootstrap-epoca bin/epoca-ssh
       - name: Validate Compose
         env:
           APP_BLUE_IMAGE: ghcr.io/bartkozik/kozikowski-it:check
@@ -46,3 +46,5 @@ jobs:
         run: docker compose config --quiet
       - name: Validate demo Compose and combined Caddy routes
         run: bash tests/validate_traffic_config.sh
+      - name: Validate EPOCA Compose and all application routes
+        run: bash tests/validate_epoca_config.sh
