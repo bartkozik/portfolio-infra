@@ -48,3 +48,5 @@ jobs:
         run: bash tests/validate_traffic_config.sh
       - name: Validate EPOCA Compose and all application routes
         run: bash tests/validate_epoca_config.sh
+      - name: Start the EPOCA runtime with production container restrictions
+        run: bash tests/smoke_epoca_runtime.sh
