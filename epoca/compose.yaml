@@ -1,0 +1,123 @@
+name: epoca
+
+x-api: &api
+  restart: unless-stopped
+  init: true
+  user: "1001:1001"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 128
+  mem_limit: 768m
+  cpus: 1.0
+  env_file: ./api.env
+  environment:
+    APP_ENVIRONMENT: demo
+    APP_FE_URL: https://epoca.kozikowski.it/
+    DB_NUM_THREADS: "4"
+    DB_MIN_CONNECTIONS: "1"
+    DB_MAX_CONNECTIONS: "6"
+    KAMON_ENABLED: "false"
+    OAUTH_ENABLED: "false"
+    INVITATION_FEATURE_ENABLED: "false"
+    SENDGRID_SYNC_ENABLED: "false"
+    USER_AVATAR_SYNC_ENABLED: "false"
+    ASSETS_STORAGE: memory
+    BAKLAVA_ROUTES_ENABLED: "false"
+    PIVOT_EXPORT_MAX_CONCURRENT_REQUESTS: "1"
+    LOG_LEVEL_REQUEST_RESPONSE: "2"
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=128m,uid=1001,gid=1001
+  networks: [database]
+  logging: &logging
+    driver: json-file
+    options:
+      max-size: 5m
+      max-file: "2"
+
+x-gateway: &gateway
+  restart: unless-stopped
+  init: true
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 64
+  mem_limit: 128m
+  cpus: 0.5
+  env_file: ./gateway.env
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
+  networks: [portfolio, database]
+  logging: *logging
+
+x-web: &web
+  restart: unless-stopped
+  user: "1000:1000"
+  read_only: true
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 64
+  mem_limit: 64m
+  cpus: 0.25
+  tmpfs:
+    - /tmp:rw,noexec,nosuid,size=16m,uid=1000,gid=1000
+  networks: [portfolio]
+  logging: *logging
+
+services:
+  epoca-api-blue:
+    <<: *api
+    image: ${API_BLUE_IMAGE:?Set API_BLUE_IMAGE}
+  epoca-api-green:
+    <<: *api
+    image: ${API_GREEN_IMAGE:?Set API_GREEN_IMAGE}
+  epoca-gateway-blue:
+    <<: *gateway
+    image: ${GATEWAY_BLUE_IMAGE:?Set GATEWAY_BLUE_IMAGE}
+    environment: &gateway-env
+      NODE_ENV: production
+      PORT: "8080"
+      BACKEND_URL: http://epoca-api-blue:9000
+      DEMO_ORIGIN: https://epoca.kozikowski.it
+      DEMO_TRUST_PROXY: "true"
+      DEMO_MAX_SESSIONS: "60"
+  epoca-gateway-green:
+    <<: *gateway
+    image: ${GATEWAY_GREEN_IMAGE:?Set GATEWAY_GREEN_IMAGE}
+    environment:
+      <<: *gateway-env
+      BACKEND_URL: http://epoca-api-green:9000
+  epoca-web-blue:
+    <<: *web
+    image: ${WEB_BLUE_IMAGE:?Set WEB_BLUE_IMAGE}
+  epoca-web-green:
+    <<: *web
+    image: ${WEB_GREEN_IMAGE:?Set WEB_GREEN_IMAGE}
+  postgres:
+    image: postgres:16-alpine@sha256:0cefaabd882e42bcb2a2f3dc56d3ce4770560ba62fd7f197f1a2e008fd5731ab
+    restart: unless-stopped
+    env_file: ./database.env
+    command: [postgres, -c, shared_buffers=32MB, -c, max_connections=40, -c, statement_timeout=30000, -c, idle_in_transaction_session_timeout=60000]
+    mem_limit: 256m
+    cpus: 0.5
+    pids_limit: 96
+    security_opt: [no-new-privileges:true]
+    volumes:
+      - database:/var/lib/postgresql/data
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U epoca -d epoca"]
+      interval: 5s
+      timeout: 3s
+      retries: 10
+    logging: *logging
+
+networks:
+  portfolio:
+    external: true
+    name: portfolio_portfolio
+  database:
+    internal: true
+volumes:
+  database:
