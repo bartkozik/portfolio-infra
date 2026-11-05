@@ -16,7 +16,7 @@ x-api: &api
     APP_FE_URL: https://epoca.kozikowski.it/
     DB_NUM_THREADS: "4"
     DB_MIN_CONNECTIONS: "1"
-    DB_MAX_CONNECTIONS: "6"
+    DB_MAX_CONNECTIONS: "4"
     KAMON_ENABLED: "false"
     OAUTH_ENABLED: "false"
     INVITATION_FEATURE_ENABLED: "false"
@@ -27,7 +27,7 @@ x-api: &api
     PIVOT_EXPORT_MAX_CONCURRENT_REQUESTS: "1"
     LOG_LEVEL_REQUEST_RESPONSE: "2"
   tmpfs:
-    - /tmp:rw,noexec,nosuid,size=128m,uid=1001,gid=1001
+    - /tmp:rw,noexec,nosuid,size=128m,uid=1001,gid=1001,mode=0700
   networks: [database]
   logging: &logging
     driver: json-file
